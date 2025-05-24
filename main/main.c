@@ -78,7 +78,7 @@ static esp_websocket_client_handle_t websocket_client = NULL;
 
 static void websocket_app_start(void) {    
     esp_websocket_client_config_t websocket_cfg = {
-        .uri = "ws://10.12.27.12:8765/",
+        .uri = "ws://weatherapi.glitchy.systems",
     };
     websocket_client = esp_websocket_client_init(&websocket_cfg);
     esp_websocket_client_start(websocket_client);

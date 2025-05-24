@@ -1,0 +1,55 @@
+# ESP-IDF build artifacts
+/build/
+/bootloader/
+/bootloader-prefix/
+/managed_components/
+/__pycache__/
+*.bin
+*.elf
+*.map
+*.pyc
+*.o
+*.obj
+*.a
+*.d
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+*.old
+*.env
+*.DS_Store
+*.vscode/
+*.code-workspace
+
+# Python virtual environments
+.venv/
+venv/
+ENV/
+
+# Node/npm artifacts (if using frontend tooling)
+/frontend/node_modules/
+/frontend/dist/
+
+# Local config
+# sdkconfig
+sdkconfig.old
+# sdkconfig.defaults
+config.env
+
+# Editor/OS files
+*.sublime-workspace
+*.sublime-project
+.idea/
+*.iml
+*.user
+*.db
+Thumbs.db
+.DS_Store
+
+# Docker
+/frontend/.env
+/frontend/.env.*
+/frontend/docker-compose.override.yml

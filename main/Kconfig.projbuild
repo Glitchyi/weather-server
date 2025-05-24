@@ -1,0 +1,46 @@
+menu "DHT Configuration"
+
+choice
+    prompt "Select the type of DHT sensor used in your project"
+    default DHT_TYPE_DHT11
+
+    config DHT_TYPE_DHT11
+        bool "DHT11"
+
+    config DHT_TYPE_AM2301
+        bool "DHT21/DHT22/AM2301/AM2302/AM2321"
+
+    config DHT_TYPE_SI7021
+        bool "Itead Si7021"
+endchoice
+
+config DHT_SENSOR_GPIO
+    int "GPIO Number for DHT Data Pin"
+    default 4 if IDF_TARGET_ESP8266 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C6
+    default 17 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+    help
+        Specify the GPIO number to which the DHT sensor data pin is connected.
+
+endmenu
+
+menu "WiFi Configuration"
+
+config WIFI_SSID
+    string "WiFi SSID"
+    default "Veliyamkol"
+    help
+        Set the SSID (network name) of the WiFi network to connect to.
+
+config WIFI_PASSWORD
+    string "WiFi Password"
+    default "Vel@pera6"
+    help
+        Set the password for the WiFi network.
+
+config WIFI_MAXIMUM_RETRY
+    int "Maximum WiFi Connection Retries"
+    default 5
+    help
+        Set the maximum number of times to retry connecting to the WiFi network.
+
+endmenu

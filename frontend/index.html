@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ESP32 Humidity & Temperature WebSocket Client</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script type="module">
+        import { animate } from "https://cdn.jsdelivr.net/npm/motion@12.12.0/+esm";
+        window.animate = animate;
+    </script>
+</head>
+
+<body class="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 to-amber-100">
+    <h1 class="text-2xl sm:text-3xl font-bold text-center my-4 sm:my-8 px-2">ESP32 Humidity & Temperature WebSocket Client</h1>
+    <div id="status-parent" class="fixed z-20 flex items-center justify-between right-2 left-2 sm:right-5 sm:left-auto top-28 md:top-2 bg-amber-500 px-4 sm:px-10 w-full sm:w-60 py-2 sm:py-3 shadow-xl rounded-full text-base sm:text-lg mb-2 text-gray-700 max-w-xs sm:max-w-none mx-auto">
+        <p id="status" class="text-white font-bold">Connecting...</p>
+        <div class="w-3 h-3 rounded-full bg-white relative ml-2">
+            <div class="w-3 h-3 rounded-full bg-white animate-ping absolute"></div>
+        </div>
+    </div>
+    <div class="flex flex-col sm:flex-row flex-1 h-full min-h-0 divide-y sm:divide-y-0 sm:divide-x divide-white mt-20 sm:mt-0">
+        <div class="flex-1 flex flex-col items-center justify-center bg-amber-400 relative py-8 sm:py-0" id="temperature-panel">
+            <div class="absolute text-4xl sm:text-7xl font-bold mb-4 text-amber-100 opacity-25 bottom-10 left-1/2 -translate-x-1/2 pointer-events-none select-none">TEMPERATURE</div>
+            <div class="w-full max-w-xs sm:max-w-lg flex flex-col items-center">
+                <div class="flex flex-col sm:flex-row justify-between w-full mb-4 gap-2 sm:gap-0">
+                    <div class="text-base sm:text-lg text-blue-900 font-semibold bg-white px-3 sm:px-5 py-2 sm:py-3 rounded-full text-center">Min: <span id="min-temp">-</span>°C</div>
+                    <div class="text-base sm:text-lg text-gray-900 font-semibold bg-white px-3 sm:px-5 py-2 sm:py-3 rounded-full text-center">Avg: <span id="avg-temp">-</span>°C</div>
+                    <div class="text-base sm:text-lg text-red-700 font-semibold bg-white px-3 sm:px-5 py-2 sm:py-3 rounded-full text-center">Max: <span id="max-temp">-</span>°C</div>
+                </div>
+                <div class="text-[80px] xs:text-[120px] sm:text-[200px] font-extrabold text-white mb-2 tracking-wide drop-shadow flex items-end justify-center">
+                    <span id="temperature-value">-</span><span class="text-3xl sm:text-5xl ml-1 mb-4">°C</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-blue-300 relative py-8 sm:py-0">
+            <div class="absolute text-4xl sm:text-7xl font-bold mb-4 text-blue-700 opacity-25 bottom-10 left-1/2 -translate-x-1/2 pointer-events-none select-none">HUMIDITY</div>
+            <div class="w-full max-w-xs sm:max-w-lg flex flex-col items-center">
+                <div class="text-[80px] xs:text-[120px] sm:text-[200px] font-extrabold text-blue-600 mb-2 drop-shadow flex items-end justify-center">
+                    <span id="humidity-value">-</span><span class="text-3xl sm:text-5xl ml-1 mb-4">%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        const ws = new WebSocket('ws://10.12.27.12:8765');
+        const status = document.getElementById('status');
+        const statusparent = document.getElementById('status-parent');
+        const humidityValue = document.getElementById('humidity-value');
+        const temperatureValue = document.getElementById('temperature-value');
+        const temperaturePanel = document.getElementById('temperature-panel');
+        const minTempSpan = document.getElementById('min-temp');
+        const maxTempSpan = document.getElementById('max-temp');
+        const avgTempSpan = document.getElementById('avg-temp');
+        let lastHumidity = 0;
+        let lastTemperature = 0;
+        let minTemp = null;
+        let maxTemp = null;
+        let lastBgColor = null;
+        let bgColorAnim = null;
+        let tempSum = 0;
+        let tempCount = 0;
+
+        // Load min/max from localStorage if available
+        if (localStorage.getItem('minTemp')) minTemp = parseFloat(localStorage.getItem('minTemp'));
+        if (localStorage.getItem('maxTemp')) maxTemp = parseFloat(localStorage.getItem('maxTemp'));
+
+        ws.onopen = () => {
+            status.textContent = 'Connected.';
+            statusparent.classList.remove('bg-amber-500');
+            statusparent.classList.add('bg-green-500');
+        };
+        ws.onclose = () => {
+            status.textContent = 'Disconnected.';
+            statusparent.classList.remove('bg-green-500');
+            statusparent.classList.add('bg-red-500');
+            // Reset min/max on disconnect
+            minTemp = null;
+            maxTemp = null;
+            localStorage.removeItem('minTemp');
+            localStorage.removeItem('maxTemp');
+            minTempSpan.textContent = '-';
+            maxTempSpan.textContent = '-';
+            avgTempSpan.textContent = '-';
+            temperatureValue.textContent = '-';
+            humidityValue.textContent = '-';
+            lastHumidity = 0;
+            lastTemperature = 0;
+            temperaturePanel.style.background = '';
+        };
+        ws.onerror = (e) => {
+            status.textContent = 'WebSocket error.';
+        };
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if ('humidity' in data && 'temperature' in data) {
+                    // Track min/max temperature
+                    if (minTemp === null || data.temperature < minTemp) minTemp = data.temperature;
+                    if (maxTemp === null || data.temperature > maxTemp) maxTemp = data.temperature;
+                    localStorage.setItem('minTemp', minTemp);
+                    localStorage.setItem('maxTemp', maxTemp);
+                    // Track average
+                    tempSum += data.temperature;
+                    tempCount++;
+                    // Update min/max/avg display
+                    minTempSpan.textContent = minTemp.toFixed(1);
+                    maxTempSpan.textContent = maxTemp.toFixed(1);
+                    avgTempSpan.textContent = (tempSum / tempCount).toFixed(1);
+
+                    // Calculate color based on temperature position between min and max
+                    let t = 0.5; // default neutral
+                    if (maxTemp !== minTemp) {
+                        t = (data.temperature - minTemp) / (maxTemp - minTemp);
+                        t = Math.max(0, Math.min(1, t));
+                    }
+                    // Interpolate color: blue (#3b82f6) to red (#ef4444)
+                    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+                    const r = lerp(59, 239, t);   // 59 (blue) to 239 (red)
+                    const g = lerp(130, 68, t);  // 130 (blue) to 68 (red)
+                    const b = lerp(246, 68, t);  // 246 (blue) to 68 (red)
+                    const nextBgColor = { r, g, b };
+
+                    // Animate background color smoothly
+                    if (!lastBgColor) {
+                        lastBgColor = nextBgColor;
+                        temperaturePanel.style.background = `rgb(${r},${g},${b})`;
+                    } else {
+                        if (bgColorAnim) bgColorAnim.cancel();
+                        bgColorAnim = window.animate(0, 1, {
+                            duration: 5,
+                            ease: "easeInOut",
+                            onUpdate: v => {
+                                const cr = lerp(lastBgColor.r, nextBgColor.r, v);
+                                const cg = lerp(lastBgColor.g, nextBgColor.g, v);
+                                const cb = lerp(lastBgColor.b, nextBgColor.b, v);
+                                temperaturePanel.style.background = `rgb(${cr},${cg},${cb})`;
+                            },
+                            onComplete: () => {
+                                lastBgColor = nextBgColor;
+                            }
+                        });
+                    }
+
+                    // Animate humidity
+                    window.animate(lastHumidity, data.humidity, {
+                        duration: 5,
+                        ease: "easeInOut",
+                        onUpdate: v => {
+                            humidityValue.textContent = v.toFixed(1);
+                        }
+                    });
+                    lastHumidity = data.humidity;
+                    // Animate temperature
+                    window.animate(lastTemperature, data.temperature, {
+                        duration: 5,
+                        ease: "easeInOut",
+                        onUpdate: v => {
+                            temperatureValue.textContent = v.toFixed(1);
+                        }
+                    });
+                    lastTemperature = data.temperature;
+                }
+            } catch (e) {
+                console.error('Error parsing data:', e);
+                status.textContent = 'Received invalid data.';
+            }
+        };
+    </script>
+</body>
+
+</html>
